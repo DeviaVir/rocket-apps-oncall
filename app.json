@@ -1,0 +1,38 @@
+{
+    "id": "171b449e-034c-4391-85a6-c0e9cf138761",
+    "version": "0.0.1",
+    "requiredApiVersion": "^1.19.0",
+    "iconFile": "icon.png",
+    "author": {
+        "name": "Chase Sillevis",
+        "homepage": "https://chase.sillevis.net/",
+        "support": "https://github.com/deviavir/rocket-apps-oncall"
+    },
+    "name": "oncall",
+    "nameSlug": "oncall",
+    "classFile": "OncallApp.ts",
+    "description": "Automatically picks up `@oncall` (or custom @handle) in any message sent in any Rocket.Chat channel or DM, and replaces this with a current on-call person.",
+    "implements": [
+        "IPreMessageSentModify"
+    ],
+    "permissions": [
+        {
+            "name": "message.read"
+        },
+        {
+            "name": "message.write"
+        },
+        {
+            "name": "room.read"
+        },
+        {
+            "name": "room.write"
+        },
+        {
+            "name": "env.read"
+        },
+        {
+            "name": "persistence"
+        }
+    ]
+}
