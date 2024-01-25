@@ -42,6 +42,11 @@ export class OncallApp extends App implements IPostMessageSent {
             return false;
         }
 
+        const author = await read.getUserReader().getAppUser();
+        if (author && message.sender.id === author.id) {
+            return false;
+        }
+
         return message.text.includes(`@`);
     }
 
