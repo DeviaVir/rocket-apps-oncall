@@ -1,7 +1,7 @@
 {
     "id": "171b449e-034c-4391-85a6-c0e9cf138761",
-    "version": "0.0.2",
-    "requiredApiVersion": "^1.37.5",
+    "version": "0.0.3",
+    "requiredApiVersion": "^1.41.0",
     "iconFile": "icon.png",
     "author": {
         "name": "Chase Sillevis",
