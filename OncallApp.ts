@@ -70,7 +70,7 @@ export class OncallApp extends App implements IPreMessageSentModify {
                 const persis = read.getPersistenceReader();
                 const records: Array<{ person: string }> = (await persis.readByAssociations(associations)) as Array<{ person: string }>;
                 if (records.length) {
-                    msg.text = msg.text?.replace(handle, `@${records[0].person}`);
+                    msg.text = msg.text?.replace(handle + '.bot', `@${records[0].person}`).replace(handle, `@${records[0].person}`);
                     await builder.setText(msg.text);
                 }
             }
