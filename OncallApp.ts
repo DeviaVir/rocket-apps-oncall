@@ -4,18 +4,20 @@ import {
     IEnvironmentRead,
     ILogger,
     IHttp,
-    IMessageBuilder,
+    IModify,
     IRead,
     IPersistence,
 } from '@rocket.chat/apps-engine/definition/accessors';
 import { App } from '@rocket.chat/apps-engine/definition/App';
-import { IMessage, IPreMessageSentModify } from '@rocket.chat/apps-engine/definition/messages';
+import {IMessage, IPostMessageSent} from '@rocket.chat/apps-engine/definition/messages';
 import { IAppInfo } from '@rocket.chat/apps-engine/definition/metadata';
+import {IRoom} from '@rocket.chat/apps-engine/definition/rooms/IRoom';
+import {IUser} from '@rocket.chat/apps-engine/definition/users/IUser';
 import { SettingType } from '@rocket.chat/apps-engine/definition/settings';
 import { OncallCommand } from './slashcommands/OncallCommand';
 import { RocketChatAssociationModel, RocketChatAssociationRecord } from '@rocket.chat/apps-engine/definition/metadata';
 
-export class OncallApp extends App implements IPreMessageSentModify {
+export class OncallApp extends App implements IPostMessageSent {
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
         super(info, logger, accessors);
         this.getLogger();
@@ -35,7 +37,7 @@ export class OncallApp extends App implements IPreMessageSentModify {
         this.getLogger().log('OncallApp Initialized');
     }
 
-    public async checkPreMessageSentModify(message: IMessage, read: IRead, http: IHttp): Promise<boolean> {
+    public async checkPostMessageSent(message: IMessage, read: IRead, http: IHttp): Promise<boolean> {
         if (typeof message.text !== 'string') {
             return false;
         }
@@ -43,11 +45,14 @@ export class OncallApp extends App implements IPreMessageSentModify {
         return message.text.includes(`@`);
     }
 
-    public async executePreMessageSentModify(
-        message: IMessage, builder: IMessageBuilder, read: IRead, http: IHttp, persistence: IPersistence): Promise<IMessage> {
+    public async executePostMessageSent(
+        message: IMessage, read: IRead, http: IHttp, persistence: IPersistence, modify: IModify): Promise<void> {
         if (typeof message.text !== 'string') {
-            return builder.getMessage();
+            return;
         }
+
+        const author = await read.getUserReader().getAppUser();
+        let msg;
 
         // Check if this is a message intended for any of our oncall handles.
         const handles = await read.getEnvironmentReader().getSettings().getById('handles');
@@ -66,8 +71,9 @@ export class OncallApp extends App implements IPreMessageSentModify {
                 const persis = read.getPersistenceReader();
                 const records: Array<{ person: string }> = (await persis.readByAssociations(associations)) as Array<{ person: string }>;
                 if (records.length) {
-                    message.text = message.text?.replace(handle + '.bot', `@${records[0].person}`).replace(handle, `@${records[0].person}`);
+                    msg = `@${records[0].person} please see message above from @${message.sender.username}!`;
                 }
+                await this.sendMessage(message.room, msg, author ? author : message.sender, modify)
             }
         }
 
@@ -86,7 +92,8 @@ export class OncallApp extends App implements IPreMessageSentModify {
                 new RocketChatAssociationRecord(RocketChatAssociationModel.ROOM, handle),
             ];
             await persistence.updateByAssociations(associations, { person: newPerson }, true);
-            message.text = `<OncallApp> @${newPerson} is now oncall for @${handle}`;
+            msg = `<OncallApp> @${newPerson} is now oncall for @${handle}`;
+            await this.sendMessage(message.room, msg, author ? author : message.sender, modify)
         }
 
         // Check if this is a message that is intended to get our oncall person.
@@ -102,14 +109,23 @@ export class OncallApp extends App implements IPreMessageSentModify {
             const persis = read.getPersistenceReader();
             const records: Array<{ person: string }> = (await persis.readByAssociations(associations)) as Array<{ person: string }>;
             if (records.length) {
-                message.text = `<OncallApp> @${records[0].person} is oncall for @${handle}`;
+                msg = `<OncallApp> @${records[0].person} is oncall for @${handle}`;
             } else {
-                message.text = `<OncallApp> No one is oncall for @${handle}`;
+                msg = `<OncallApp> No one is oncall for @${handle}`;
             }
+            await this.sendMessage(message.room, msg, author ? author : message.sender, modify)
         }
 
-        builder.setText(message.text);
-        return builder.getMessage();
+        return;
+    }
+
+    private async sendMessage(room: IRoom, textMessage: string, author: IUser, modify: IModify) {
+        const messageBuilder = modify.getCreator().startMessage({
+            text: textMessage,
+        } as IMessage);
+        messageBuilder.setRoom(room);
+        messageBuilder.setSender(author);
+        return modify.getCreator().finish(messageBuilder);
     }
 
 }
