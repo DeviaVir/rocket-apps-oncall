@@ -16,7 +16,6 @@ import { OncallCommand } from './slashcommands/OncallCommand';
 import { RocketChatAssociationModel, RocketChatAssociationRecord } from '@rocket.chat/apps-engine/definition/metadata';
 
 export class OncallApp extends App implements IPreMessageSentModify {
-    private matcher: RegExp = /\@/gi;
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
         super(info, logger, accessors);
         this.getLogger();
@@ -41,16 +40,14 @@ export class OncallApp extends App implements IPreMessageSentModify {
             return false;
         }
 
-        const result = message.text.match(this.matcher);
-
-        return result ? result.length !== 0 : false;
+        return message.text.includes(`@`);
     }
 
     public async executePreMessageSentModify(
         message: IMessage, builder: IMessageBuilder, read: IRead, http: IHttp, persistence: IPersistence): Promise<IMessage> {
-        const msg = builder.getMessage();
+        const msg = message;
         if (typeof msg.text !== 'string') {
-            return await builder.getMessage();
+            return builder.getMessage();
         }
 
         // Check if this is a message intended for any of our oncall handles.
@@ -71,7 +68,6 @@ export class OncallApp extends App implements IPreMessageSentModify {
                 const records: Array<{ person: string }> = (await persis.readByAssociations(associations)) as Array<{ person: string }>;
                 if (records.length) {
                     msg.text = msg.text?.replace(handle + '.bot', `@${records[0].person}`).replace(handle, `@${records[0].person}`);
-                    await builder.setText(msg.text);
                 }
             }
         }
@@ -91,8 +87,7 @@ export class OncallApp extends App implements IPreMessageSentModify {
                 new RocketChatAssociationRecord(RocketChatAssociationModel.ROOM, handle),
             ];
             await persistence.updateByAssociations(associations, { person: newPerson }, true);
-            msg.text = `<OncallApp> @${newPerson} is now oncall for @${handle}`;
-            await builder.setText(msg.text);
+            msg.text = msg.text += ` -- <OncallApp> @${newPerson} is now oncall for @${handle}`;
         }
 
         // Check if this is a message that is intended to get our oncall person.
@@ -108,15 +103,13 @@ export class OncallApp extends App implements IPreMessageSentModify {
             const persis = read.getPersistenceReader();
             const records: Array<{ person: string }> = (await persis.readByAssociations(associations)) as Array<{ person: string }>;
             if (records.length) {
-                msg.text = `<OncallApp> @${records[0].person} is oncall for @${handle}`;
-                await builder.setText(msg.text);
+                msg.text = msg.text += ` -- <OncallApp> @${records[0].person} is oncall for @${handle}`;
             } else {
-                msg.text = `<OncallApp> No one is oncall for @${handle}`;
-                await builder.setText(msg.text);
+                msg.text = msg.text += ` -- <OncallApp> No one is oncall for @${handle}`;
             }
         }
 
-        return await builder.getMessage();
+        return msg;
     }
 
 }
